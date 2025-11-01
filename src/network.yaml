@@ -1,0 +1,19 @@
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "{{HOME_ASSISTANT_KEY}}"
+
+# Enable OTA updates
+ota:
+  - platform: esphome
+    password: "{{OTA_PASSWORD}}"
+
+# Configure WiFi connection
+wifi:
+  ssid: "{{WIFI_SSID}}"
+  password: "{{WIFI_PASSWORD}}"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Ipixel-Esphome Fallback Hotspot"
+    password: "{{AP_FALLBACK_PASSWORD}}"

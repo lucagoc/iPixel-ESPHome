@@ -1,0 +1,227 @@
+#############################
+# Bluetooth LED Matrix Code #
+#############################
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+############################
+
+select:
+
+  # Clock Style
+  - platform: template
+    name: "Clock Style"
+    icon: "mdi:clock-digital"
+    id: clock_style
+    optimistic: true
+    options:
+      - "Disabled"
+      - "Style 1"
+      - "Style 2"
+      - "Style 3"
+      - "Style 4"
+      - "Style 5"
+      - "Style 6"
+      - "Style 7"
+      - "Style 8"
+    on_value:
+      # - if:
+      #     condition:
+      #       lambda: 'return x == "Disabled";'
+      #     then:
+      #       - button.press:
+      #           id: clear
+      # Action to do when clock style is changed
+      # Do not clear as it creates looping issues
+      - if:
+          condition:
+            lambda: 'return !(x == "Disabled");'
+          then:
+            - switch.turn_on:
+                id: power_on
+      - button.press:
+          id: refresh_clock
+
+  # Manual Weekday
+  - platform: template
+    id: weekday
+    name: "Weekday"
+    icon: "mdi:calendar-week"
+    disabled_by_default: true
+    optimistic: true
+    options:
+      - "Monday"
+      - "Tuesday"
+      - "Wednesday"
+      - "Thursday"
+      - "Friday"
+      - "Saturday"
+      - "Sunday"
+    on_value:
+      - button.press:
+          id: refresh_clock
+
+text:
+  # Manual Date Input
+  - platform: template
+    id: manual_date
+    name: "Date (DD/MM/YY)"
+    icon: "mdi:calendar-edit"
+    disabled_by_default: true
+    optimistic: true
+    mode: text
+    initial_value: "01/01/25"
+    on_value:
+      - button.press:
+          id: refresh_clock
+
+
+  # Manual Time Input
+  - platform: template
+    id: manual_time
+    name: "Time (HH:MM)"
+    icon: "mdi:clock-in"
+    disabled_by_default: true
+    optimistic: true
+    mode: text
+    initial_value: "00:00"
+    on_value:
+      - button.press:
+          id: refresh_clock
+
+
+switch:
+  # Clock 24h Format
+  - platform: template
+    id: use_24h
+    name: "Use 24h Format"
+    icon: "mdi:hours-24"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    on_state:
+      - button.press:
+          id: refresh_clock
+
+  # Show Date
+  - platform: template
+    id: show_date
+    name: "Show Date"
+    icon: "mdi:calendar-clock"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    on_state:
+      - button.press:
+          id: refresh_clock
+
+  # Automatic / Manual Time Set
+  - platform: template
+    id: auto_timeset
+    name: "Auto Date/Time set"
+    icon: "mdi:calendar-sync"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    on_state:
+      - button.press:
+          id: refresh_clock
+
+button:
+  - platform: template
+    name: "Refresh Clock"
+    id: refresh_clock
+    internal: true
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(clock_style).state != "Disabled" && id(clock_style).state != "Disabled";'
+          then:
+            - ble_client.ble_write:
+                id: ble_matrix
+                service_uuid: '00FA'
+                characteristic_uuid: '0000FA02-0000-1000-8000-00805F9B34FB'
+                value: !lambda |-
+                  // Build and send the set_clock command
+                  std::vector<uint8_t> command = {0x0b, 0x00, 0x06, 0x01};
+                  // Parse style from label "Style N" and send N-1 to device
+                  std::string current_style = id(clock_style).state;
+                  uint8_t style = 0;
+                  size_t pos = current_style.find(' ');
+                  if (pos != std::string::npos) {
+                    int n = atoi(current_style.substr(pos + 1).c_str());
+                    // Convert label numbering (1..9) to device 0-based index (0..8)
+                    style = (uint8_t)((n > 0) ? n : 0);
+                  }
+                  command.push_back(style);
+                  bool format24 = (id(use_24h).state);
+                  command.push_back(format24 ? 0x01 : 0x00);
+                  bool showdate = (id(show_date).state);
+                  command.push_back(showdate ? 0x01 : 0x00);
+                  uint8_t year, month, day, dow;
+                  // time_set_mode switch: ON = Manuel, OFF = Automatique
+                  if (!id(auto_timeset).state) {
+                    // Parse date from DD/MM/YY format
+                    std::string date_str = id(manual_date).state;
+                    day = atoi(date_str.substr(0, 2).c_str());
+                    month = atoi(date_str.substr(3, 2).c_str());
+                    year = atoi(date_str.substr(6, 2).c_str());
+                    // Map weekday text to number (1=Monday, 7=Sunday)
+                    std::string weekday_str = id(weekday).state;
+                    if (weekday_str == "Monday") dow = 1;
+                    else if (weekday_str == "Tuesday") dow = 2;
+                    else if (weekday_str == "Wednesday") dow = 3;
+                    else if (weekday_str == "Thursday") dow = 4;
+                    else if (weekday_str == "Friday") dow = 5;
+                    else if (weekday_str == "Saturday") dow = 6;
+                    else if (weekday_str == "Sunday") dow = 7;
+                    else dow = 1; // default
+                  } else {
+                    // Automatic: get current date from Home Assistant time
+                    auto time = id(homeassistant_time).now();
+                    year = time.year % 100; // Get last 2 digits
+                    month = time.month;
+                    day = time.day_of_month;
+                    dow = time.day_of_week; // 1=Sunday in ESPHome, need to adjust
+                    dow = (dow == 1) ? 7 : dow - 1; // Convert: 1=Sun->7, 2=Mon->1, etc.
+                  }
+                  command.push_back(year);
+                  command.push_back(month);
+                  command.push_back(day);
+                  command.push_back(dow);
+                  return command;
+
+            - button.press:
+                id: set_time_button
+
+  - platform: template
+    name: "Set Time"
+    id: set_time_button
+    internal: true
+    on_press:
+      - ble_client.ble_write:
+          id: ble_matrix
+          service_uuid: '00FA'
+          characteristic_uuid: '0000FA02-0000-1000-8000-00805F9B34FB'
+          value: !lambda |-
+            uint8_t hour, minute, second;
+            // time_set_mode switch: ON = Manuel, OFF = Automatique
+            if (!id(auto_timeset).state) {
+              // Manuel: parse time from HH:MM format
+              std::string time_str = id(manual_time).state;
+              hour = atoi(time_str.substr(0, 2).c_str());
+              minute = atoi(time_str.substr(3, 2).c_str());
+              second = 0; // Default to 0 for manual input
+            } else {
+              // Automatic: get current time from Home Assistant time
+              auto time = id(homeassistant_time).now();
+              hour = time.hour;
+              minute = time.minute;
+              second = time.second;
+            }
+            // Validate ranges
+            if (hour > 23) hour = 23;
+            if (minute > 59) minute = 59;
+            if (second > 59) second = 59;
+            // Build command: 0x08 0x00 0x01 0x80 hour minute second 0x00
+            std::vector<uint8_t> command = {0x08, 0x00, 0x01, 0x80, hour, minute, second, 0x00};
+            return command;

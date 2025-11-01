@@ -1,0 +1,25 @@
+switch:
+  # Screen ON/OFF
+  - platform: template
+    name: "Power On"
+    id: power_on
+    icon: "mdi:power"
+    optimistic: true
+    assumed_state: true
+    restore_mode: RESTORE_DEFAULT_ON
+    turn_on_action:
+      - ble_client.ble_write:
+          id: ble_matrix
+          service_uuid: '00FA'
+          characteristic_uuid: '0000FA02-0000-1000-8000-00805F9B34FB'
+          value: !lambda |-
+            std::vector<uint8_t> command = {0x05, 0x00, 0x07, 0x01, 0x01};
+            return command;
+    turn_off_action:
+      - ble_client.ble_write:
+          id: ble_matrix
+          service_uuid: '00FA'
+          characteristic_uuid: '0000FA02-0000-1000-8000-00805F9B34FB'
+          value: !lambda |-
+            std::vector<uint8_t> command = {0x05, 0x00, 0x07, 0x01, 0x00};
+            return command;

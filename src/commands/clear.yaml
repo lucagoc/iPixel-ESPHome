@@ -1,0 +1,21 @@
+button:
+  # Clear
+  - platform: template
+    name: "Clear EEPROM"
+    icon: "mdi:delete-sweep"
+    id: clear
+    on_press:
+      - ble_client.ble_write:
+          id: ble_matrix
+          service_uuid: '00FA'
+          characteristic_uuid: '0000FA02-0000-1000-8000-00805F9B34FB'
+          value: !lambda |-
+            std::vector<uint8_t> command = {0x04, 0x00, 0x03, 0x80};
+            return command;
+      - select.set:
+          id : clock_style
+          option: "Disabled"
+      - switch.turn_on: power_on
+      - number.set:
+          id: brightness
+          value: 100

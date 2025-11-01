@@ -1,0 +1,20 @@
+number:
+  # Brightness
+  - platform: template
+    name: "Brightness"
+    id: brightness
+    icon: "mdi:brightness-6"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    initial_value: 100
+    step: 1
+    on_value:
+      - ble_client.ble_write:
+          id: ble_matrix
+          service_uuid: '00FA'
+          characteristic_uuid: '0000FA02-0000-1000-8000-00805F9B34FB'
+          value: !lambda |-
+            uint8_t b = (uint8_t) round(x);
+            std::vector<uint8_t> command = {0x05, 0x00, 0x04, 0x80, b};
+            return command;

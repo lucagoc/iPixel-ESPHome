@@ -1,0 +1,6 @@
+# Enable ESP32 BLE Tracker
+esp32_ble_tracker:
+
+ble_client:
+  - id: ble_matrix
+    mac_address: "{{MAC_ADDRESS}}"

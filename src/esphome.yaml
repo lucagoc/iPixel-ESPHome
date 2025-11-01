@@ -1,0 +1,19 @@
+#################
+# CONFIGURATION #
+#################
+
+# iPixel-ESPHome ESPHome Configuration
+esphome:
+  name: ipixel-esphome
+  friendly_name: ipixel-ESPHome
+
+# Configure the ESP32 platform
+esp32:
+  board: "{{BOARD}}"
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+captive_portal:

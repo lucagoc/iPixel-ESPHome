@@ -1,0 +1,144 @@
+text:
+  - platform: template
+    name: "PNG URL"
+    id: png_url
+    mode: text
+    icon: "mdi:web"
+    optimistic: true
+    initial_value: "https://i.ibb.co/GvSV4j12/test.png"  # Example URL
+
+globals:
+  - id: png_command
+    type: std::vector<uint8_t>
+
+script:
+  - id: send_png_ble
+    then:
+      - ble_client.ble_write:
+          id: ble_matrix
+          service_uuid: '00FA'
+          characteristic_uuid: '0000FA02-0000-1000-8000-00805F9B34FB'
+          value: !lambda 'return id(png_command);'
+
+http_request:
+  verify_ssl: true
+
+button:
+  - platform: template
+    name: "Download and Send PNG"
+    id: send_png
+    icon: "mdi:download"
+    on_press:
+      - http_request.get:
+          url: !lambda 'return id(png_url).state;'
+          capture_response: true
+          max_response_buffer_size: 65536
+          on_response:
+            - lambda: |-
+                // Function to switch endian
+                auto switch_endian = [](std::string hex_string) -> std::string {
+                  if (hex_string.length() % 2 != 0) return hex_string;
+                  std::vector<std::string> pairs;
+                  for (size_t i = 0; i < hex_string.length(); i += 2) {
+                    pairs.push_back(hex_string.substr(i, 2));
+                  }
+                  std::reverse(pairs.begin(), pairs.end());
+                  std::string result;
+                  for (auto& p : pairs) result += p;
+                  return result;
+                };
+
+                // Function to compute CRC32
+                auto crc32 = [](const uint8_t* data, size_t length) -> uint32_t {
+                  uint32_t crc = 0xFFFFFFFF;
+                  for (size_t i = 0; i < length; ++i) {
+                    crc ^= data[i];
+                    for (int j = 0; j < 8; ++j) {
+                      if (crc & 1) {
+                        crc = (crc >> 1) ^ 0xEDB88320;
+                      } else {
+                        crc >>= 1;
+                      }
+                    }
+                  }
+                  return ~crc;
+                };
+
+                // Retrieve the body of the HTTP response (PNG bytes)
+                if (response->status_code != 200) {
+                  return;  // Error if not 200 OK
+                }
+
+                std::string png_body = body;
+                std::vector<uint8_t> png_bytes(png_body.begin(), png_body.end());
+                if (png_bytes.empty()) {
+                  return;
+                }
+
+                // Convert to hex string (if necessary for the logic)
+                std::string png_hex;
+                for (uint8_t byte : png_bytes) {
+                  char hex[3];
+                  sprintf(hex, "%02x", byte);
+                  png_hex += hex;
+                }
+
+                // Apply send_png logic
+                // Calculate size = png_bytes.size() in hex 8 chars
+                uint32_t png_size = png_bytes.size();
+                char size_str[9];
+                sprintf(size_str, "%08x", png_size);
+                std::string size_hex(size_str);
+                size_hex = switch_endian(size_hex);
+
+                // Calculate checksum CRC32 of png_bytes
+                uint32_t crc = crc32(png_bytes.data(), png_bytes.size());
+                char checksum_str[9];
+                sprintf(checksum_str, "%08x", crc);
+                std::string checksum_hex(checksum_str);
+                checksum_hex = switch_endian(checksum_hex);
+
+                // Build inner = "FFFF020000" + size_hex + checksum_hex + "0065" + png_hex
+                std::string inner = "FFFF020000" + size_hex + checksum_hex + "0065" + png_hex;
+
+                // Convert inner to bytes for length
+                std::vector<uint8_t> inner_bytes;
+                for (size_t i = 0; i < inner.length(); i += 2) {
+                  if (i + 1 >= inner.length()) break;
+                  std::string byteString = inner.substr(i, 2);
+                  char* end;
+                  uint8_t byte = strtol(byteString.c_str(), &end, 16);
+                  if (*end != '\0') continue;
+                  inner_bytes.push_back(byte);
+                }
+
+                uint32_t total_size = inner_bytes.size();
+                char total_size_str[5];
+                sprintf(total_size_str, "%04x", total_size);
+                std::string header_size(total_size_str);
+                header_size = switch_endian(header_size);
+
+                // Final command = header_size + "020000" + size_hex + checksum_hex + "0065" + png_hex
+                std::string command_hex = header_size + "020000" + size_hex + checksum_hex + "0065" + png_hex;
+
+                // Convert to bytes
+                std::vector<uint8_t> command;
+                for (size_t i = 0; i < command_hex.length(); i += 2) {
+                  if (i + 1 >= command_hex.length()) break;
+                  std::string byteString = command_hex.substr(i, 2);
+                  char* end;
+                  uint8_t byte = strtol(byteString.c_str(), &end, 16);
+                  if (*end != '\0') continue;
+                  command.push_back(byte);
+                }
+
+                // Store the command in the global variable
+                id(png_command) = command;
+                // Trigger BLE sending
+                id(send_png_ble).execute();
+          on_error:
+            - logger.log: "Cannot download PNG image."
+      
+      - select.set:
+          id : clock_style
+          option: "Disabled"
