@@ -2,6 +2,8 @@
 
 iPixel-ESPHome is an ESPHome integration to control an `iPixel Color` LED matrix via Bluetooth. This project allows connecting a compatible LED matrix to Home Assistant using an ESP32 as a Bluetooth gateway.
 
+![featured.png](.github/featured.png)
+
 ## Features
 
 **This project is still in early development. Contributions are welcome!**
