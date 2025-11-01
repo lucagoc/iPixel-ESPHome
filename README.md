@@ -116,9 +116,14 @@ Placeholders like `{{BOARD}}` will be replaced with values from `secrets.txt`.
 
 ## Related project
 
-- [iPixel-CLI](https://github.com/lucagoc/iPixel-CLI) Original project
+- [iPixel-CLI](https://github.com/lucagoc/iPixel-CLI) Python original project
 - [iPixel-CFW](https://github.com/lucagoc/iPixel-CFW) CFW experimentation
-- []
+
+Check also these cool projects made by other developers:
+
+- [iPixel-ESP32 (ToBiDi0410)](https://github.com/ToBiDi0410/iPixel-ESP32): ESP32 port of this project
+- [iPixel-CLI-ESP32 (Cino2424)](https://github.com/Cino2424/iPixel-CLI-ESP32/tree/port-esp32): Another ESP32 port of this project
+- [go-ipxl (yyewolf)](https://github.com/yyewolf/go-ipxl): Go library implementation
 
 ## License
 
